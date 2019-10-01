@@ -6,6 +6,7 @@ public class PlayerController : MonoBehaviour
 {
     // Start is called before the first frame update
     public int speed;
+    public float jump;
     void Start()
     {
         
@@ -14,6 +15,7 @@ public class PlayerController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        Jump();
         if (Input.GetKey(KeyCode.LeftArrow))
         {
             transform.Translate(Vector3.left * Time.deltaTime * speed);
@@ -25,5 +27,13 @@ public class PlayerController : MonoBehaviour
         }
 
         
+    }
+
+    void Jump()
+    {
+        if (Input.GetButtonDown("Jump"))
+        {
+            gameObject.GetComponent<Rigidbody2D>().AddForce(new Vector2(0f, jump), ForceMode2D.Impulse);
+        }
     }
 }
