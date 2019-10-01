@@ -527,7 +527,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   speed: 20
-  jump: 25
+  jump: 100
 --- !u!1 &1719304206
 GameObject:
   m_ObjectHideFlags: 0
