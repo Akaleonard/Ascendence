@@ -36,6 +36,8 @@ public class PlayerController : MonoBehaviour
         } else {
             animationController.SetBool("isRunning", false);
         }
+
+        
     }
 
     void Jump()

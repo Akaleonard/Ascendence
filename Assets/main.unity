@@ -187,7 +187,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1528358731}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.45, y: -11.2, z: 0}
+  m_LocalPosition: {x: -2.45, y: -5.5, z: 0}
   m_LocalScale: {x: 59.106617, y: 3.0002818, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
@@ -349,9 +349,9 @@ GameObject:
   m_Component:
   - component: {fileID: 1740279278}
   - component: {fileID: 1740279280}
-  - component: {fileID: 1740279279}
   - component: {fileID: 1740279283}
   - component: {fileID: 1740279282}
+  - component: {fileID: 1740279279}
   - component: {fileID: 1740279281}
   m_Layer: 0
   m_Name: Player
@@ -368,7 +368,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1740279277}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 11.81, y: -4.96, z: 0}
+  m_LocalPosition: {x: 11.81, y: 0, z: 0}
   m_LocalScale: {x: 3, y: 2.85, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
@@ -453,8 +453,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1fc54d2b912f9bc4cb875647a0e3c2f8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  speed: 15
-  jump: 25
+  speed: 25
+  jump: 55
 --- !u!50 &1740279282
 Rigidbody2D:
   serializedVersion: 4
@@ -470,7 +470,7 @@ Rigidbody2D:
   m_Mass: 1
   m_LinearDrag: 0
   m_AngularDrag: 0.05
-  m_GravityScale: 1
+  m_GravityScale: 15
   m_Material: {fileID: 0}
   m_Interpolate: 0
   m_SleepingMode: 1
@@ -600,7 +600,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   player: {fileID: 1740279278}
   offset: {x: 0, y: 0, z: -100}
-  cameraSpeed: 25
+  cameraSpeed: 15
 --- !u!1 &2072734847
 GameObject:
   m_ObjectHideFlags: 0
