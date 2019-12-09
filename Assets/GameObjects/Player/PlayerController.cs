@@ -11,6 +11,8 @@ public class PlayerController : MonoBehaviour
     private float forceJumpTimer;
     private float forceJumpTime = .11f;
 
+    private bool usedDoubleJump = false;
+
     private Animator animationController;
     private Rigidbody2D rb;
     void Start()
@@ -42,8 +44,10 @@ public class PlayerController : MonoBehaviour
         }
             Debug.Log(IsGrounded());
 
+        // Landing on the ground
         if (IsGrounded() && animationController.GetBool("isJumping") && forceJumpTimer > forceJumpTime){
             animationController.SetBool("isJumping", false);
+            usedDoubleJump = false;
         }
 
         forceJumpTimer += Time.deltaTime;
@@ -53,13 +57,23 @@ public class PlayerController : MonoBehaviour
         RaycastHit2D hit = Physics2D.Raycast(transform.position, -Vector2.up, 3.95f, 1 << 8);
         if (hit.collider != null)
             Debug.Log(hit.collider.gameObject.name);
+        
         return hit;
     }
 
     void Jump()
     {
         if (Input.GetButtonDown("Jump"))
-        {
+        {   
+            // In the air, haven't double jumped yet.. Use double jump
+            if(!IsGrounded() && usedDoubleJump == false){
+                usedDoubleJump = true;
+            // In the air, double jumped used... Exit without jump
+            }else if(!IsGrounded() && usedDoubleJump == true) {
+                return;
+            }
+
+            // Either player was on ground, or hadn't used doubel jump, so JUMP
             rb.velocity = new Vector2(rb.velocity.x, 0);
             rb.AddForce(new Vector2(0f, jump), ForceMode2D.Impulse);
             animationController.SetBool("isJumping", true);
