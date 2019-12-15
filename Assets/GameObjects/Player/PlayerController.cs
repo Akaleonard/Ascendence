@@ -15,34 +15,25 @@ public class PlayerController : MonoBehaviour
 
     private Animator animationController;
     private Rigidbody2D rb;
+    private Transform wallCheck;
+
+    private bool triggerJump;
+    private float velX;
+
     void Start()
     {
-        animationController = GetComponent<Animator>();
+        animationController = gameObject.GetComponent<Animator>();
         rb = gameObject.GetComponent<Rigidbody2D>();
+        wallCheck = gameObject.transform.Find("WallCheck");
+        Debug.Log(wallCheck);
     }
 
     // Update is called once per frame
     void Update()
     {
-        Jump();
-        if (Input.GetKey(KeyCode.LeftArrow))
-        {
-            transform.Translate(Vector3.left * Time.deltaTime * speed);
-            animationController.SetBool("isRunning", true);
-            if (transform.localScale.x > 0)
-                transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
-        }
-        else if (Input.GetKey(KeyCode.RightArrow))
-        {
-            transform.Translate(Vector3.right * Time.deltaTime * speed);
-            animationController.SetBool("isRunning", true);
-            if (transform.localScale.x < 0)
-                transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
-
-        } else {
-            animationController.SetBool("isRunning", false);
-        }
-            Debug.Log(IsGrounded());
+        checkJump();
+        checkMovement();
+        
 
         // Landing on the ground
         if (IsGrounded() && animationController.GetBool("isJumping") && forceJumpTimer > forceJumpTime){
@@ -54,14 +45,11 @@ public class PlayerController : MonoBehaviour
     }
 
     bool IsGrounded() {
-        RaycastHit2D hit = Physics2D.Raycast(transform.position, -Vector2.up, 3.95f, 1 << 8);
-        if (hit.collider != null)
-            Debug.Log(hit.collider.gameObject.name);
-        
-        return hit;
+        // bitshift the index of the layer (8) to get the layer mask
+        return Physics2D.Raycast(transform.position, -Vector2.up, 1.5f, 1 << 8); 
     }
 
-    void Jump()
+    void checkJump()
     {
         if (Input.GetButtonDown("Jump"))
         {   
@@ -73,11 +61,48 @@ public class PlayerController : MonoBehaviour
                 return;
             }
 
-            // Either player was on ground, or hadn't used doubel jump, so JUMP
-            rb.velocity = new Vector2(rb.velocity.x, 0);
-            rb.AddForce(new Vector2(0f, jump), ForceMode2D.Impulse);
-            animationController.SetBool("isJumping", true);
-            forceJumpTimer = 0;
+            triggerJump = true;
         }
+    }
+
+    void checkMovement() {
+        if (Input.GetKey(KeyCode.LeftArrow))
+        {
+            velX = -speed;
+            //transform.Translate(Vector3.left * Time.deltaTime * speed);
+            animationController.SetBool("isRunning", true);
+            if (transform.localScale.x > 0)
+                transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
+        }
+        else if (Input.GetKey(KeyCode.RightArrow))
+        {
+            velX = speed;
+            animationController.SetBool("isRunning", true);
+            if (transform.localScale.x < 0)
+                transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
+
+        } else {
+            animationController.SetBool("isRunning", false);
+            velX = 0;
+        }
+    }
+
+    void FixedUpdate()
+    {
+        if (triggerJump){
+            Jump();
+        }
+
+        rb.velocity = new Vector2(velX, rb.velocity.y);
+
+    }
+
+    void Jump() {
+        // Either player was on ground, or hadn't used doubel jump, so JUMP
+        rb.velocity = new Vector2(rb.velocity.x, 0);
+        rb.AddForce(new Vector2(0f, jump), ForceMode2D.Impulse);
+        animationController.SetBool("isJumping", true);
+        forceJumpTimer = 0;
+        triggerJump = false;
     }
 }
