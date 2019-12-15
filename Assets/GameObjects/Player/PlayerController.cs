@@ -25,7 +25,6 @@ public class PlayerController : MonoBehaviour
         animationController = gameObject.GetComponent<Animator>();
         rb = gameObject.GetComponent<Rigidbody2D>();
         wallCheck = gameObject.transform.Find("WallCheck");
-        Debug.Log(wallCheck);
     }
 
     // Update is called once per frame
@@ -49,10 +48,34 @@ public class PlayerController : MonoBehaviour
         return Physics2D.Raycast(transform.position, -Vector2.up, 1.5f, 1 << 8); 
     }
 
+    bool isWallHitting(Vector2 direction) {
+        Debug.Log( Physics2D.Raycast(wallCheck.position, direction, .7f, 1 << 8));
+        return Physics2D.Raycast(wallCheck.position, direction, .7f, 1 << 8);
+    }
+
     void checkJump()
     {
         if (Input.GetButtonDown("Jump"))
         {   
+
+            if (isWallHitting(Vector2.right)) {
+                triggerJump = true;
+                usedDoubleJump = false;
+                velX = -speed;
+                if (transform.localScale.x > 0)
+                    transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
+                return;
+
+            } 
+            if (isWallHitting(Vector2.left)){
+                triggerJump = true;
+                usedDoubleJump = false;
+                velX = speed;
+                if (transform.localScale.x < 0)
+                transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
+                return;
+            }
+
             // In the air, haven't double jumped yet.. Use double jump
             if(!IsGrounded() && usedDoubleJump == false){
                 usedDoubleJump = true;
@@ -81,7 +104,7 @@ public class PlayerController : MonoBehaviour
             if (transform.localScale.x < 0)
                 transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
 
-        } else {
+        } else if(IsGrounded()) {
             animationController.SetBool("isRunning", false);
             velX = 0;
         }
