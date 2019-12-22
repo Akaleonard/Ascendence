@@ -4,19 +4,21 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
-    // Start is called before the first frame update
+    // Public Variables
     public int speed;
     public float jump;
-    private bool forceJumpAnimation;
-    private float forceJumpTimer;
-    private float forceJumpTime = .11f;
 
-    private bool usedDoubleJump = false;
-
+    //Component References
     private Animator animationController;
     private Rigidbody2D rb;
     private Transform wallCheck;
 
+    // Jump Constant ensuring jump doesn't get grounded by the raycast when jump starts
+    private const float FORCED_JUMP_TIME = .11f;
+
+    // Physics Variables
+    private float forcedJumpTimer;
+    private bool usedDoubleJump = false;
     private bool triggerJump;
     private float velX;
 
@@ -30,17 +32,17 @@ public class PlayerController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        // Check for Physics things to happen, Trigger them in FixedUpdate()
         checkJump();
         checkMovement();
-        
 
         // Landing on the ground
-        if (IsGrounded() && animationController.GetBool("isJumping") && forceJumpTimer > forceJumpTime){
+        if (IsGrounded() && animationController.GetBool("isJumping") && forcedJumpTimer > FORCED_JUMP_TIME){
             animationController.SetBool("isJumping", false);
             usedDoubleJump = false;
         }
 
-        forceJumpTimer += Time.deltaTime;
+        forcedJumpTimer += Time.deltaTime;
     }
 
     bool IsGrounded() {
@@ -48,7 +50,7 @@ public class PlayerController : MonoBehaviour
         return Physics2D.Raycast(transform.position, -Vector2.up, 1.5f, 1 << 8); 
     }
 
-    bool isWallHitting(Vector2 direction) {
+    bool IsWallHitting(Vector2 direction) {
         Debug.Log( Physics2D.Raycast(wallCheck.position, direction, .7f, 1 << 8));
         return Physics2D.Raycast(wallCheck.position, direction, .7f, 1 << 8);
     }
@@ -56,9 +58,8 @@ public class PlayerController : MonoBehaviour
     void checkJump()
     {
         if (Input.GetButtonDown("Jump"))
-        {   
-
-            if (isWallHitting(Vector2.right)) {
+        {
+            if (IsWallHitting(Vector2.right)) {
                 triggerJump = true;
                 usedDoubleJump = false;
                 velX = -speed;
@@ -67,7 +68,7 @@ public class PlayerController : MonoBehaviour
                 return;
 
             } 
-            if (isWallHitting(Vector2.left)){
+            if (IsWallHitting(Vector2.left)){
                 triggerJump = true;
                 usedDoubleJump = false;
                 velX = speed;
@@ -116,8 +117,8 @@ public class PlayerController : MonoBehaviour
             Jump();
         }
 
+        // If left or right inputted, this applies that to the character
         rb.velocity = new Vector2(velX, rb.velocity.y);
-
     }
 
     void Jump() {
@@ -125,7 +126,7 @@ public class PlayerController : MonoBehaviour
         rb.velocity = new Vector2(rb.velocity.x, 0);
         rb.AddForce(new Vector2(0f, jump), ForceMode2D.Impulse);
         animationController.SetBool("isJumping", true);
-        forceJumpTimer = 0;
+        forcedJumpTimer = 0;
         triggerJump = false;
     }
 }
