@@ -59,6 +59,7 @@ public class PlayerController : MonoBehaviour
     {
         if (Input.GetButtonDown("Jump"))
         {
+            // Check if there's a wall to our right
             if (IsWallHitting(Vector2.right)) {
                 triggerJump = true;
                 usedDoubleJump = false;
@@ -67,7 +68,8 @@ public class PlayerController : MonoBehaviour
                     transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
                 return;
 
-            } 
+            }
+
             if (IsWallHitting(Vector2.left)){
                 triggerJump = true;
                 usedDoubleJump = false;
