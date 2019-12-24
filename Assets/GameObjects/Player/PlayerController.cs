@@ -11,7 +11,12 @@ public class PlayerController : MonoBehaviour
     //Component References
     private Animator animationController;
     private Rigidbody2D rb;
-    private Transform wallCheck;
+    private Transform topRight;
+    private Transform bottomRight;
+    private Transform topLeft;
+    private Transform bottomLeft;
+
+
 
     // Jump Constant ensuring jump doesn't get grounded by the raycast when jump starts
     private const float FORCED_JUMP_TIME = .11f;
@@ -22,11 +27,15 @@ public class PlayerController : MonoBehaviour
     private bool triggerJump;
     private float velX;
 
+    private float deltaTime;
     void Start()
     {
         animationController = gameObject.GetComponent<Animator>();
         rb = gameObject.GetComponent<Rigidbody2D>();
-        wallCheck = gameObject.transform.Find("WallCheck");
+        topRight = gameObject.transform.Find("TopRight");
+        topLeft = gameObject.transform.Find("TopLeft");
+        bottomRight = gameObject.transform.Find("BottomRight");
+        bottomLeft = gameObject.transform.Find("BottomLeft");
     }
 
     // Update is called once per frame
@@ -47,19 +56,60 @@ public class PlayerController : MonoBehaviour
 
     bool IsGrounded() {
         // bitshift the index of the layer (8) to get the layer mask
-        return Physics2D.Raycast(transform.position, -Vector2.up, 1.5f, 1 << 8); 
+        RaycastHit2D hit1 = Physics2D.Raycast(bottomRight.position, Vector2.down, .1f, 1 << 8);
+        if (hit1)
+            return hit1;
+        RaycastHit2D hit2 = Physics2D.Raycast(bottomLeft.position, Vector2.down, .1f, 1 << 8);
+        if (hit2)
+            return hit2;
+        return false;
     }
 
     bool IsWallHitting(Vector2 direction) {
-        Debug.Log( Physics2D.Raycast(wallCheck.position, direction, .7f, 1 << 8));
-        return Physics2D.Raycast(wallCheck.position, direction, .7f, 1 << 8);
+        Transform child1, child2;
+        if (direction == Vector2.right) {
+            child1 = transform.localScale.x > 0 ? topRight : topLeft;
+            child2 = transform.localScale.x > 0 ? bottomRight : bottomLeft;
+
+            RaycastHit2D hit1 = Physics2D.Raycast(child1.position, direction, .1f, 1 << 8);
+            if (hit1)
+                return hit1;
+            RaycastHit2D hit2 = Physics2D.Raycast(child2.position, direction, .1f, 1 << 8);
+            if (hit2)
+                return hit2;
+        } else {
+            child1 = transform.localScale.x > 0 ? topLeft : topRight;
+            child2 = transform.localScale.x > 0 ? bottomLeft : bottomRight;
+
+            RaycastHit2D hit3 = Physics2D.Raycast(child1.position, direction, .1f, 1 << 8);
+            //Color color = hit3 ? Color.green : Color.red;
+            //Debug.DrawRay(topLeft.position, direction * .1f, color);
+
+            if (hit3)
+                return hit3;
+            RaycastHit2D hit4 = Physics2D.Raycast(child2.position, direction, .1f, 1 << 8);
+            if (hit4)
+                return hit4;
+        }
+
+        return false;
     }
 
     void checkJump()
     {
         if (Input.GetButtonDown("Jump"))
-        {
+        {   
+            //Vector2 right = new Vector2(Vector2.right.x * transform.localScale.x, Vector2.right.y);
+            //Vector2 left = new Vector2(right.x * -1, Vector2.left.y);
             // Check if there's a wall to our right
+            if (IsWallHitting(Vector2.left)){
+                triggerJump = true;
+                usedDoubleJump = false;
+                velX = speed;
+                if (transform.localScale.x < 0)
+                    transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
+                return;
+            }
             if (IsWallHitting(Vector2.right)) {
                 triggerJump = true;
                 usedDoubleJump = false;
@@ -70,14 +120,7 @@ public class PlayerController : MonoBehaviour
 
             }
 
-            if (IsWallHitting(Vector2.left)){
-                triggerJump = true;
-                usedDoubleJump = false;
-                velX = speed;
-                if (transform.localScale.x < 0)
-                transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
-                return;
-            }
+            
 
             // In the air, haven't double jumped yet.. Use double jump
             if(!IsGrounded() && usedDoubleJump == false){
