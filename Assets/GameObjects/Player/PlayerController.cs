@@ -13,6 +13,8 @@ public class PlayerController : MonoBehaviour
     private Rigidbody2D rb;
     private Transform topRight;
     private Transform bottomRight;
+    private Transform middleLeft;
+    private Transform middleRight;
     private Transform topLeft;
     private Transform bottomLeft;
 
@@ -20,8 +22,15 @@ public class PlayerController : MonoBehaviour
 
     // Jump Constant ensuring jump doesn't get grounded by the raycast when jump starts
     private const float FORCED_JUMP_TIME = .11f;
+    private const float WALL_RAYCAST_DISTANCE = .2f;
+    private const float GROUND_RAYCAST_DISTANCE = .1f;
+    private const int PLATFORM_LAYER_MASK = 8;
+    private const float WALL_JUMP_LOCKED_INPUT_TIME = .3f;
 
     // Physics Variables
+    private float lockedInputTimer;
+    private bool lockedInputJumpEscapable;
+    private bool isGroundedThisFrame;
     private float forcedJumpTimer;
     private bool usedDoubleJump = false;
     private bool triggerJump;
@@ -34,144 +43,213 @@ public class PlayerController : MonoBehaviour
         rb = gameObject.GetComponent<Rigidbody2D>();
         topRight = gameObject.transform.Find("TopRight");
         topLeft = gameObject.transform.Find("TopLeft");
+        middleLeft = gameObject.transform.Find("MiddleLeft");
+        middleRight = gameObject.transform.Find("MiddleRight");
         bottomRight = gameObject.transform.Find("BottomRight");
         bottomLeft = gameObject.transform.Find("BottomLeft");
+        lockedInputTimer = -1;
     }
 
     // Update is called once per frame
     void Update()
     {
+        // Stores results into private var isGroundedThisFrame for optimization
+        checkGrounded(); 
+
         // Check for Physics things to happen, Trigger them in FixedUpdate()
-        checkJump();
-        checkMovement();
-
-        // Landing on the ground
-        if (IsGrounded() && animationController.GetBool("isJumping") && forcedJumpTimer > FORCED_JUMP_TIME){
-            animationController.SetBool("isJumping", false);
-            usedDoubleJump = false;
+        if (lockedInputTimer < 0) {
+            checkMovement();
+            checkJump();
+        // If movement locked out but can escape it with jump
+        } else if (lockedInputJumpEscapable) {
+            checkJump();
         }
 
+        // Handle Landing on the ground
+        checkLanding();
+
+        // Update Timers
         forcedJumpTimer += Time.deltaTime;
+        lockedInputTimer -= Time.deltaTime;
     }
 
-    bool IsGrounded() {
-        // bitshift the index of the layer (8) to get the layer mask
-        RaycastHit2D hit1 = Physics2D.Raycast(bottomRight.position, Vector2.down, .1f, 1 << 8);
-        if (hit1)
-            return hit1;
-        RaycastHit2D hit2 = Physics2D.Raycast(bottomLeft.position, Vector2.down, .1f, 1 << 8);
-        if (hit2)
-            return hit2;
-        return false;
-    }
-
-    bool IsWallHitting(Vector2 direction) {
-        Transform child1, child2;
-        if (direction == Vector2.right) {
-            child1 = transform.localScale.x > 0 ? topRight : topLeft;
-            child2 = transform.localScale.x > 0 ? bottomRight : bottomLeft;
-
-            RaycastHit2D hit1 = Physics2D.Raycast(child1.position, direction, .1f, 1 << 8);
-            if (hit1)
-                return hit1;
-            RaycastHit2D hit2 = Physics2D.Raycast(child2.position, direction, .1f, 1 << 8);
-            if (hit2)
-                return hit2;
-        } else {
-            child1 = transform.localScale.x > 0 ? topLeft : topRight;
-            child2 = transform.localScale.x > 0 ? bottomLeft : bottomRight;
-
-            RaycastHit2D hit3 = Physics2D.Raycast(child1.position, direction, .1f, 1 << 8);
-            //Color color = hit3 ? Color.green : Color.red;
-            //Debug.DrawRay(topLeft.position, direction * .1f, color);
-
-            if (hit3)
-                return hit3;
-            RaycastHit2D hit4 = Physics2D.Raycast(child2.position, direction, .1f, 1 << 8);
-            if (hit4)
-                return hit4;
+    // Needed for correctly interacting with physics engine
+    void FixedUpdate()
+    {
+        if (triggerJump) {
+            Jump();
         }
 
-        return false;
+        // Apply velocity from input or environmental factors
+        rb.velocity = new Vector2(velX, rb.velocity.y);
+    }
+
+    void checkGrounded() {
+        // bitshift the index of the layer (8) to get the layer mask
+        RaycastHit2D hit1 = Physics2D.Raycast(bottomRight.position, Vector2.down, GROUND_RAYCAST_DISTANCE, 1 << 8);
+        if (hit1) {
+            isGroundedThisFrame = hit1;
+            return;
+        }
+        RaycastHit2D hit2 = Physics2D.Raycast(bottomLeft.position, Vector2.down, GROUND_RAYCAST_DISTANCE, 1 << 8);
+        if (hit2){
+            isGroundedThisFrame = hit2;
+            return;
+        }
+        if (animationController.GetBool("isRunning")){
+            animationController.SetBool("isJumping", true);
+            animationController.SetBool("isRunning", false);
+        }
+
+        isGroundedThisFrame = false;
     }
 
     void checkJump()
     {
         if (Input.GetButtonDown("Jump"))
-        {   
-            //Vector2 right = new Vector2(Vector2.right.x * transform.localScale.x, Vector2.right.y);
-            //Vector2 left = new Vector2(right.x * -1, Vector2.left.y);
-            // Check if there's a wall to our right
-            if (IsWallHitting(Vector2.left)){
-                triggerJump = true;
-                usedDoubleJump = false;
-                velX = speed;
-                if (transform.localScale.x < 0)
-                    transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
+        {
+            // Check and exit if this is a wall jump
+            if (checkWallJump() == true)
                 return;
-            }
-            if (IsWallHitting(Vector2.right)) {
-                triggerJump = true;
-                usedDoubleJump = false;
-                velX = -speed;
-                if (transform.localScale.x > 0)
-                    transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
-                return;
-
-            }
-
-            
 
             // In the air, haven't double jumped yet.. Use double jump
-            if(!IsGrounded() && usedDoubleJump == false){
+            if(!isGroundedThisFrame && usedDoubleJump == false){
                 usedDoubleJump = true;
             // In the air, double jumped used... Exit without jump
-            }else if(!IsGrounded() && usedDoubleJump == true) {
+            }else if(!isGroundedThisFrame && usedDoubleJump == true) {
                 return;
             }
 
+            // Jump in FixedUpdate()
             triggerJump = true;
+            // Escape jumpEscapable input lockout e.g. wall jump
+            lockedInputTimer = -1;
         }
     }
 
-    void checkMovement() {
-        if (Input.GetKey(KeyCode.LeftArrow))
-        {
+    bool checkWallJump() {
+        bool wallHit = false;
+
+        // Left Wall Specific
+        if (checkWallHitting(Vector2.left)){
+            wallHit = true;
+            velX = speed;
+            if (transform.localScale.x < 0)
+                transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
+        // Right Wall Specific
+        }else if (checkWallHitting(Vector2.right)) {
+            wallHit = true;
             velX = -speed;
-            //transform.Translate(Vector3.left * Time.deltaTime * speed);
-            animationController.SetBool("isRunning", true);
             if (transform.localScale.x > 0)
                 transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
         }
-        else if (Input.GetKey(KeyCode.RightArrow))
+
+        // Wall Jump General
+        if (wallHit) {
+            triggerJump = true;
+            usedDoubleJump = false;
+            lockoutInput(WALL_JUMP_LOCKED_INPUT_TIME, true);
+        }
+
+        return wallHit;
+    }
+
+    bool checkWallHitting(Vector2 direction) {
+        if (isGroundedThisFrame)
+            return false;
+
+        Transform child1, child2, child3;
+        if (direction == Vector2.right) {
+            child1 = transform.localScale.x > 0 ? topRight : topLeft;
+            child2 = transform.localScale.x > 0 ? bottomRight : bottomLeft;
+            child3 = transform.localScale.x > 0 ? middleRight: middleLeft;
+
+            RaycastHit2D hit1 = Physics2D.Raycast(child1.position, direction, WALL_RAYCAST_DISTANCE, 1 << PLATFORM_LAYER_MASK);
+            // Uncomment below for debugging the raycasts
+            /*Color color = hit1 ? Color.green : Color.red;
+            Debug.DrawRay(child1.position, direction * WALL_RAYCAST_DISTANCE, color, 3);
+            Debug.DrawRay(child2.position, direction * WALL_RAYCAST_DISTANCE, color, 3);
+            Debug.DrawRay(child3.position, direction * WALL_RAYCAST_DISTANCE, color, 3);*/
+            if (hit1)
+                return hit1;
+            RaycastHit2D hit2 = Physics2D.Raycast(child2.position, direction, WALL_RAYCAST_DISTANCE, 1 << PLATFORM_LAYER_MASK);
+            if (hit2)
+                return hit2;
+
+            RaycastHit2D hit5 = Physics2D.Raycast(child3.position, direction, WALL_RAYCAST_DISTANCE, 1 << PLATFORM_LAYER_MASK);
+            if (hit5)
+                return hit5;
+        } else {
+            child1 = transform.localScale.x > 0 ? topLeft : topRight;
+            child2 = transform.localScale.x > 0 ? bottomLeft : bottomRight;
+            child3 = transform.localScale.x > 0 ? middleLeft: middleRight;
+
+            RaycastHit2D hit3 = Physics2D.Raycast(child1.position, direction, WALL_RAYCAST_DISTANCE, 1 << PLATFORM_LAYER_MASK);
+            if (hit3)
+                return hit3;
+
+            RaycastHit2D hit4 = Physics2D.Raycast(child2.position, direction, WALL_RAYCAST_DISTANCE, 1 << PLATFORM_LAYER_MASK);
+
+            // Uncomment below for debugging the raycasts
+            /*Color color = hit4 ? Color.green : Color.red;
+            Debug.DrawRay(child1.position, direction * WALL_RAYCAST_DISTANCE, color, 3);
+            Debug.DrawRay(child2.position, direction * WALL_RAYCAST_DISTANCE, color, 3);
+            Debug.DrawRay(child3.position, direction * WALL_RAYCAST_DISTANCE, color, 3);*/
+            if (hit4)
+                return hit4;
+
+            RaycastHit2D hit6 = Physics2D.Raycast(child3.position, direction, WALL_RAYCAST_DISTANCE, 1 << PLATFORM_LAYER_MASK);
+            if (hit6)
+                return hit6;
+        }
+
+        // No Wall Collision
+        return false;
+    }
+
+    void checkMovement() {
+        // Left Input
+        if (Input.GetKey(KeyCode.LeftArrow))
+        {
+            velX = -speed;
+            animationController.SetBool("isRunning", true);
+            if (transform.localScale.x > 0)
+                transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
+        // Right Input
+        } else if (Input.GetKey(KeyCode.RightArrow))
         {
             velX = speed;
             animationController.SetBool("isRunning", true);
             if (transform.localScale.x < 0)
                 transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
-
-        } else if(IsGrounded()) {
-            animationController.SetBool("isRunning", false);
+        // No Left or Right input
+        } else {
+            // Walked off a platform, in midair now
+            if (isGroundedThisFrame) 
+                animationController.SetBool("isRunning", false);
             velX = 0;
         }
     }
 
-    void FixedUpdate()
-    {
-        if (triggerJump){
-            Jump();
+    void checkLanding() {
+        if (isGroundedThisFrame && animationController.GetBool("isJumping") && forcedJumpTimer > FORCED_JUMP_TIME){
+            animationController.SetBool("isJumping", false);
+            usedDoubleJump = false;
         }
-
-        // If left or right inputted, this applies that to the character
-        rb.velocity = new Vector2(velX, rb.velocity.y);
     }
 
+    // Actions
     void Jump() {
-        // Either player was on ground, or hadn't used doubel jump, so JUMP
+        // Either player was on ground, or hadn't used double jump, so JUMP
         rb.velocity = new Vector2(rb.velocity.x, 0);
         rb.AddForce(new Vector2(0f, jump), ForceMode2D.Impulse);
         animationController.SetBool("isJumping", true);
         forcedJumpTimer = 0;
         triggerJump = false;
+    }
+
+    public void lockoutInput(float lockoutTime, bool jumpEscapable) {
+        this.lockedInputTimer = lockoutTime;
+        this.lockedInputJumpEscapable = jumpEscapable;
     }
 }
