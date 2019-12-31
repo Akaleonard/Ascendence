@@ -7,6 +7,7 @@ public class PlayerController : MonoBehaviour
     // Public Variables
     public int speed;
     public float jump;
+    public float dashSpeed;
 
     //Component References
     private Animator animationController;
@@ -26,7 +27,7 @@ public class PlayerController : MonoBehaviour
     private const float GROUND_RAYCAST_DISTANCE = .1f;
     private const int PLATFORM_LAYER_MASK = 8;
     private const float WALL_JUMP_LOCKED_INPUT_TIME = .3f;
-
+    private const float Dash_Locked_Input_Time = .3f;
     // Physics Variables
     private float lockedInputTimer;
     private bool lockedInputJumpEscapable;
@@ -34,7 +35,9 @@ public class PlayerController : MonoBehaviour
     private float forcedJumpTimer;
     private bool usedDoubleJump = false;
     private bool triggerJump;
+    private bool triggerDash;
     private float velX;
+    private bool overRideVelX;
 
     private float deltaTime;
     void Start()
@@ -58,8 +61,10 @@ public class PlayerController : MonoBehaviour
 
         // Check for Physics things to happen, Trigger them in FixedUpdate()
         if (lockedInputTimer < 0) {
+            overRideVelX = false;
             checkMovement();
             checkJump();
+            checkDash();
         // If movement locked out but can escape it with jump
         } else if (lockedInputJumpEscapable) {
             checkJump();
@@ -79,9 +84,14 @@ public class PlayerController : MonoBehaviour
         if (triggerJump) {
             Jump();
         }
-
+        if (triggerDash)
+        {
+            Dash();
+        }
         // Apply velocity from input or environmental factors
-        rb.velocity = new Vector2(velX, rb.velocity.y);
+        if(!overRideVelX) {
+            rb.velocity = new Vector2(velX, rb.velocity.y);
+        }
     }
 
     void checkGrounded() {
@@ -148,7 +158,7 @@ public class PlayerController : MonoBehaviour
         if (wallHit) {
             triggerJump = true;
             usedDoubleJump = false;
-            lockoutInput(WALL_JUMP_LOCKED_INPUT_TIME, true);
+            lockoutInput(WALL_JUMP_LOCKED_INPUT_TIME, true, false);
         }
 
         return wallHit;
@@ -248,8 +258,24 @@ public class PlayerController : MonoBehaviour
         triggerJump = false;
     }
 
-    public void lockoutInput(float lockoutTime, bool jumpEscapable) {
+    public void lockoutInput(float lockoutTime, bool jumpEscapable, bool overRideVelX) {
         this.lockedInputTimer = lockoutTime;
         this.lockedInputJumpEscapable = jumpEscapable;
+        this.overRideVelX = overRideVelX; 
+    }
+
+    void checkDash()
+    {
+        if (Input.GetKeyDown(KeyCode.C))
+        {
+            triggerDash = true;
+            lockoutInput(Dash_Locked_Input_Time, true, true);
+        }
+    }
+
+    void Dash()
+    {
+        rb.AddForce(new Vector2(transform.localScale.x, 0) * dashSpeed, ForceMode2D.Impulse);
+        triggerDash = false;
     }
 }
