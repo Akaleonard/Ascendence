@@ -38,6 +38,8 @@ public class PlayerController : MonoBehaviour
     private bool triggerDash;
     private float velX;
     private bool overRideVelX;
+    private float inputX;
+    private float inputY;
 
     private float deltaTime;
     void Start()
@@ -219,14 +221,15 @@ public class PlayerController : MonoBehaviour
 
     void checkMovement() {
         // Left Input
-        if (Input.GetKey(KeyCode.LeftArrow))
+        inputX = Input.GetAxis("Horizontal");
+        if (inputX < 0)
         {
             velX = -speed;
             animationController.SetBool("isRunning", true);
             if (transform.localScale.x > 0)
                 transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
         // Right Input
-        } else if (Input.GetKey(KeyCode.RightArrow))
+        } else if (inputX > 0)
         {
             velX = speed;
             animationController.SetBool("isRunning", true);
@@ -266,7 +269,7 @@ public class PlayerController : MonoBehaviour
 
     void checkDash()
     {
-        if (Input.GetKeyDown(KeyCode.C))
+        if (Input.GetButtonDown("Dash"))
         {
             triggerDash = true;
             lockoutInput(Dash_Locked_Input_Time, true, true);
@@ -275,7 +278,8 @@ public class PlayerController : MonoBehaviour
 
     void Dash()
     {
-        rb.AddForce(new Vector2(transform.localScale.x, 0) * dashSpeed, ForceMode2D.Impulse);
+        inputY = Input.GetAxis("Vertical");
+        rb.AddForce(new Vector2(inputX, inputY) * dashSpeed, ForceMode2D.Impulse);
         triggerDash = false;
     }
 }
