@@ -5,9 +5,11 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     // Public Variables
-    public int speed;
+    public float acceleration;
+    public float maxSpeed;
     public float jump;
     public float dashSpeed;
+    public float runStartSpeed;
 
     //Component References
     private Animator animationController;
@@ -38,6 +40,7 @@ public class PlayerController : MonoBehaviour
     private bool triggerDash;
     private float velX;
     private bool overRideVelX;
+    private Vector3 newVelocity;
     private float inputX;
     private float inputY;
 
@@ -53,6 +56,8 @@ public class PlayerController : MonoBehaviour
         bottomRight = gameObject.transform.Find("BottomRight");
         bottomLeft = gameObject.transform.Find("BottomLeft");
         lockedInputTimer = -1;
+        newVelocity = new Vector3(0, 0, -1);
+
     }
 
     // Update is called once per frame
@@ -83,6 +88,11 @@ public class PlayerController : MonoBehaviour
     // Needed for correctly interacting with physics engine
     void FixedUpdate()
     {
+        if (newVelocity.z > 0) {
+            rb.velocity = new Vector2(newVelocity.x, newVelocity.y);
+            newVelocity = new Vector3(0, 0, -1);
+        }
+
         if (triggerJump) {
             Jump();
         }
@@ -91,8 +101,13 @@ public class PlayerController : MonoBehaviour
             Dash();
         }
         // Apply velocity from input or environmental factors
-        if(!overRideVelX) {
-            rb.velocity = new Vector2(velX, rb.velocity.y);
+        if(!overRideVelX && velX != 0) {
+            rb.velocity = new Vector2(rb.velocity.x + (velX * Time.deltaTime), rb.velocity.y);
+            if(rb.velocity.x > maxSpeed) {
+                rb.velocity = new Vector2(maxSpeed, rb.velocity.y);
+            } else if (rb.velocity.x < -maxSpeed) {
+                rb.velocity = new Vector2(-maxSpeed, rb.velocity.y);
+            }
         }
     }
 
@@ -145,13 +160,13 @@ public class PlayerController : MonoBehaviour
         // Left Wall Specific
         if (checkWallHitting(Vector2.left)){
             wallHit = true;
-            velX = speed;
+            velX = acceleration;
             if (transform.localScale.x < 0)
                 transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
         // Right Wall Specific
         }else if (checkWallHitting(Vector2.right)) {
             wallHit = true;
-            velX = -speed;
+            velX = -acceleration;
             if (transform.localScale.x > 0)
                 transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
         }
@@ -224,17 +239,24 @@ public class PlayerController : MonoBehaviour
         inputX = Input.GetAxis("Horizontal");
         if (inputX < 0)
         {
-            velX = -speed;
+
+            velX = -acceleration;
             animationController.SetBool("isRunning", true);
-            if (transform.localScale.x > 0)
+            if (transform.localScale.x > 0){
                 transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
+                newVelocity = new Vector3(-runStartSpeed, rb.velocity.y, 1);
+            }
+
         // Right Input
         } else if (inputX > 0)
         {
-            velX = speed;
+
+            velX = acceleration;
             animationController.SetBool("isRunning", true);
-            if (transform.localScale.x < 0)
+            if (transform.localScale.x < 0) {
                 transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
+                newVelocity = new Vector3(runStartSpeed, rb.velocity.y, 1);
+            }
         // No Left or Right input
         } else {
             // Walked off a platform, in midair now
@@ -272,6 +294,7 @@ public class PlayerController : MonoBehaviour
         if (Input.GetButtonDown("Dash"))
         {
             triggerDash = true;
+            newVelocity = new Vector3(0, 0, 1);
             lockoutInput(Dash_Locked_Input_Time, true, true);
         }
     }

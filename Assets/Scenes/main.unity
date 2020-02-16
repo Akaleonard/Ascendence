@@ -1002,7 +1002,7 @@ Rigidbody2D:
   m_LinearDrag: 0
   m_AngularDrag: 0.05
   m_GravityScale: 1
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 6200000, guid: 157741e31265f504890e4858de99de36, type: 2}
   m_Interpolate: 0
   m_SleepingMode: 1
   m_CollisionDetection: 0
@@ -1316,9 +1316,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1fc54d2b912f9bc4cb875647a0e3c2f8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  speed: 12
+  acceleration: 70
+  maxSpeed: 15
   jump: 18
   dashSpeed: 20
+  runStartSpeed: 10
 --- !u!50 &1740279282
 Rigidbody2D:
   serializedVersion: 4
