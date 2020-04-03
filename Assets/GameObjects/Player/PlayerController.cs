@@ -13,6 +13,7 @@ public class PlayerController : MonoBehaviour
 
     //Component References
     private Animator animationController;
+    private InputHandler inputHandler;
     private Rigidbody2D rb;
     private Transform topRight;
     private Transform bottomRight;
@@ -21,15 +22,17 @@ public class PlayerController : MonoBehaviour
     private Transform topLeft;
     private Transform bottomLeft;
 
-
+    private string state;
+    private int jumpFrameCounter;
 
     // Jump Constant ensuring jump doesn't get grounded by the raycast when jump starts
-    private const float FORCED_JUMP_TIME = .11f;
+    private const float FORCED_JUMP_TIME = 5;
     private const float WALL_RAYCAST_DISTANCE = .2f;
     private const float GROUND_RAYCAST_DISTANCE = .1f;
     private const int PLATFORM_LAYER_MASK = 8;
-    private const float WALL_JUMP_LOCKED_INPUT_TIME = .3f;
-    private const float Dash_Locked_Input_Time = .3f;
+    private const float WALL_JUMP_LOCKED_INPUT_TIME = 10;
+    private const int WAVE_LAND_LOCKOUT_FRAMES = 10;
+    private const float Dash_Locked_Input_Time = 10;
     // Physics Variables
     private float lockedInputTimer;
     private bool lockedInputJumpEscapable;
@@ -44,10 +47,10 @@ public class PlayerController : MonoBehaviour
     private float inputX;
     private float inputY;
 
-    private float deltaTime;
     void Start()
     {
         animationController = gameObject.GetComponent<Animator>();
+        inputHandler = gameObject.GetComponent<InputHandler>();
         rb = gameObject.GetComponent<Rigidbody2D>();
         topRight = gameObject.transform.Find("TopRight");
         topLeft = gameObject.transform.Find("TopLeft");
@@ -61,7 +64,7 @@ public class PlayerController : MonoBehaviour
     }
 
     // Update is called once per frame
-    void Update()
+    void LateUpdate()
     {
         // Stores results into private var isGroundedThisFrame for optimization
         checkGrounded(); 
@@ -81,8 +84,9 @@ public class PlayerController : MonoBehaviour
         checkLanding();
 
         // Update Timers
-        forcedJumpTimer += Time.deltaTime;
-        lockedInputTimer -= Time.deltaTime;
+        forcedJumpTimer++;
+        jumpFrameCounter++;
+        lockedInputTimer--;
     }
 
     // Needed for correctly interacting with physics engine
@@ -102,27 +106,42 @@ public class PlayerController : MonoBehaviour
         }
         // Apply velocity from input or environmental factors
         if(!overRideVelX && velX != 0) {
-            rb.velocity = new Vector2(rb.velocity.x + (velX * Time.deltaTime), rb.velocity.y);
-            if(rb.velocity.x > maxSpeed) {
+            rb.velocity = new Vector2(rb.velocity.x + (velX), rb.velocity.y);
+            if(state != "standing" && rb.velocity.x > maxSpeed) {
                 rb.velocity = new Vector2(maxSpeed, rb.velocity.y);
-            } else if (rb.velocity.x < -maxSpeed) {
+            } else if (state != "standing" && rb.velocity.x < -maxSpeed) {
                 rb.velocity = new Vector2(-maxSpeed, rb.velocity.y);
             }
+        }
+    }
+
+    void checkWaveland(RaycastHit2D hit) {
+
+        if (hit) {
+            if (!isGroundedThisFrame) {
+                var newX = rb.velocity.x > 0 ? rb.velocity.x + Mathf.Abs(rb.velocity.y) : rb.velocity.x - Mathf.Abs(rb.velocity.y);
+                newVelocity = new Vector3(newX, rb.velocity.y, 1);
+                Debug.Log(jumpFrameCounter + " " + newX);
+                lockoutInput(WAVE_LAND_LOCKOUT_FRAMES, true, false);
+            }
+            isGroundedThisFrame = hit;
         }
     }
 
     void checkGrounded() {
         // bitshift the index of the layer (8) to get the layer mask
         RaycastHit2D hit1 = Physics2D.Raycast(bottomRight.position, Vector2.down, GROUND_RAYCAST_DISTANCE, 1 << 8);
-        if (hit1) {
-            isGroundedThisFrame = hit1;
+        if (hit1){
+            checkWaveland(hit1);
             return;
-        }
+        } 
+
         RaycastHit2D hit2 = Physics2D.Raycast(bottomLeft.position, Vector2.down, GROUND_RAYCAST_DISTANCE, 1 << 8);
         if (hit2){
-            isGroundedThisFrame = hit2;
+            checkWaveland(hit2);
             return;
         }
+
         if (animationController.GetBool("isRunning")){
             animationController.SetBool("isJumping", true);
             animationController.SetBool("isRunning", false);
@@ -133,7 +152,7 @@ public class PlayerController : MonoBehaviour
 
     void checkJump()
     {
-        if (Input.GetButtonDown("Jump"))
+        if (inputHandler.GetInputObject().jumpPressed)
         {
             // Check and exit if this is a wall jump
             if (checkWallJump() == true)
@@ -149,6 +168,8 @@ public class PlayerController : MonoBehaviour
 
             // Jump in FixedUpdate()
             triggerJump = true;
+            jumpFrameCounter = 0;
+            state = "jumping";
             // Escape jumpEscapable input lockout e.g. wall jump
             lockedInputTimer = -1;
         }
@@ -236,38 +257,50 @@ public class PlayerController : MonoBehaviour
 
     void checkMovement() {
         // Left Input
-        inputX = Input.GetAxis("Horizontal");
+        inputX = inputHandler.GetInputObject().inputX;
         if (inputX < 0)
         {
+            if (isGroundedThisFrame) {
+                animationController.SetBool("isRunning", true);
+                state = "running";
+            }
 
             velX = -acceleration;
-            animationController.SetBool("isRunning", true);
             if (transform.localScale.x > 0){
                 transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
-                newVelocity = new Vector3(-runStartSpeed, rb.velocity.y, 1);
+
+                if (state == "running") {
+                    newVelocity = new Vector3(-runStartSpeed, rb.velocity.y, 1);
+                }
             }
 
         // Right Input
         } else if (inputX > 0)
         {
-
+            if (isGroundedThisFrame) {
+                animationController.SetBool("isRunning", true);
+                state = "running";
+            }
             velX = acceleration;
-            animationController.SetBool("isRunning", true);
             if (transform.localScale.x < 0) {
                 transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
-                newVelocity = new Vector3(runStartSpeed, rb.velocity.y, 1);
+                if (state == "running") {
+                    newVelocity = new Vector3(runStartSpeed, rb.velocity.y, 1);
+                }
             }
         // No Left or Right input
         } else {
             // Walked off a platform, in midair now
-            if (isGroundedThisFrame) 
+            if (isGroundedThisFrame) {
                 animationController.SetBool("isRunning", false);
+                state = "standing";
+            }
             velX = 0;
         }
     }
 
     void checkLanding() {
-        if (isGroundedThisFrame && animationController.GetBool("isJumping") && forcedJumpTimer > FORCED_JUMP_TIME){
+        if (isGroundedThisFrame && animationController.GetBool("isJumping") /*&& forcedJumpTimer > FORCED_JUMP_TIME*/){
             animationController.SetBool("isJumping", false);
             usedDoubleJump = false;
         }
@@ -291,7 +324,7 @@ public class PlayerController : MonoBehaviour
 
     void checkDash()
     {
-        if (Input.GetButtonDown("Dash"))
+        if (inputHandler.GetInputObject().dashPressed)
         {
             triggerDash = true;
             newVelocity = new Vector3(0, 0, 1);
@@ -301,8 +334,7 @@ public class PlayerController : MonoBehaviour
 
     void Dash()
     {
-        inputY = Input.GetAxis("Vertical");
-        rb.AddForce(new Vector2(inputX, inputY) * dashSpeed, ForceMode2D.Impulse);
+        rb.AddForce(new Vector2(inputX, inputHandler.GetInputObject().inputY) * dashSpeed, ForceMode2D.Impulse);
         triggerDash = false;
     }
 }
