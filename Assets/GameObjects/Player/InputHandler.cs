@@ -29,14 +29,15 @@ public class InputHandler : MonoBehaviour
     void Update()
     {
         if (mode == "local") {
-            inputObject.jumpPressed = Input.GetButtonDown("Jump") ? true : false;
-            inputObject.dashPressed = Input.GetButtonDown("Dash") ? true : false;
+            inputObject.jumpHeld = Input.GetButton("Jump");
+            inputObject.jumpPressed = Input.GetButtonDown("Jump");
+            inputObject.dashPressed = Input.GetButtonDown("Dash");
             inputObject.inputX = Input.GetAxis("Horizontal");
             inputObject.inputY = Input.GetAxis("Vertical");
             inputObject.posX = transform.position.x;
             inputObject.posY = transform.position.y;
-            Debug.Log(transform.position.x);
-            tcpClient.netUpdate(inputObject);
+            if (tcpClient != null)
+                tcpClient.netUpdate(inputObject);
         }
     }
 }
@@ -44,6 +45,8 @@ public class InputHandler : MonoBehaviour
 [System.Serializable]
 public class InputObject {
     public bool jumpPressed;
+    public bool jumpHeld;
+
     public bool dashPressed;
     public float inputX;
     public float inputY;

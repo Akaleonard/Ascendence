@@ -7,9 +7,14 @@ public class PlayerController : MonoBehaviour
     // Public Variables
     public float acceleration;
     public float maxSpeed;
+    public int jumpSquatFrames;
+    public int freeFallStartupFrames;
     public float jump;
+    public float hopModifier;
     public float dashSpeed;
     public float runStartSpeed;
+    public float gravity;
+
 
     //Component References
     private Animator animationController;
@@ -24,20 +29,19 @@ public class PlayerController : MonoBehaviour
 
     private string state;
     private int jumpFrameCounter;
+    private float hop;
 
     // Jump Constant ensuring jump doesn't get grounded by the raycast when jump starts
-    private const float FORCED_JUMP_TIME = 5;
     private const float WALL_RAYCAST_DISTANCE = .2f;
     private const float GROUND_RAYCAST_DISTANCE = .1f;
     private const int PLATFORM_LAYER_MASK = 8;
-    private const float WALL_JUMP_LOCKED_INPUT_TIME = 10;
-    private const int WAVE_LAND_LOCKOUT_FRAMES = 10;
-    private const float Dash_Locked_Input_Time = 10;
+
+    public int WALL_JUMP_LOCKED_INPUT_TIME = 10;
+    public int Dash_Locked_Input_Time = 10;
     // Physics Variables
-    private float lockedInputTimer;
+    private int lockedInputTimer;
     private bool lockedInputJumpEscapable;
     private bool isGroundedThisFrame;
-    private float forcedJumpTimer;
     private bool usedDoubleJump = false;
     private bool triggerJump;
     private bool triggerDash;
@@ -46,7 +50,9 @@ public class PlayerController : MonoBehaviour
     private Vector3 newVelocity;
     private float inputX;
     private float inputY;
-
+    private Vector2 dashVelocity;
+    private float totalTime;
+    private int totalFrameCount;
     void Start()
     {
         animationController = gameObject.GetComponent<Animator>();
@@ -61,32 +67,51 @@ public class PlayerController : MonoBehaviour
         lockedInputTimer = -1;
         newVelocity = new Vector3(0, 0, -1);
 
+        totalTime = 0;
+        totalFrameCount = 0;
     }
 
     // Update is called once per frame
     void LateUpdate()
     {
+        if (state == "freeFallStartup" && lockedInputTimer == 0){
+            state = "isFreeFalling";
+        } else if (state == "isDashing" && lockedInputTimer == 0) {
+            state = "freeFallStartup";
+            lockoutInput(freeFallStartupFrames, false, false);
+        }
+
+        gameObject.layer = rb.velocity.y > 0 ? 10 : 0;
+
         // Stores results into private var isGroundedThisFrame for optimization
         checkGrounded(); 
 
         // Check for Physics things to happen, Trigger them in FixedUpdate()
-        if (lockedInputTimer < 0) {
+        if (lockedInputTimer <= 0) {
             overRideVelX = false;
             checkMovement();
             checkJump();
             checkDash();
+
+            if (lockedInputTimer == 0 && state == "isJumpSquatting") {
+                triggerJump = true;
+                Debug.Log("triggered Jump");
+            }
         // If movement locked out but can escape it with jump
         } else if (lockedInputJumpEscapable) {
             checkJump();
         }
 
+        //Debug.Log(state);
         // Handle Landing on the ground
         checkLanding();
 
         // Update Timers
-        forcedJumpTimer++;
         jumpFrameCounter++;
         lockedInputTimer--;
+        totalFrameCount++;
+        totalTime += Time.deltaTime;
+        //Debug.Log("Frame: " + totalFrameCount + " Total Time: " + totalTime);
     }
 
     // Needed for correctly interacting with physics engine
@@ -96,20 +121,31 @@ public class PlayerController : MonoBehaviour
             rb.velocity = new Vector2(newVelocity.x, newVelocity.y);
             newVelocity = new Vector3(0, 0, -1);
         }
-
+        //Debug.Log(inputHandler.GetInputObject().jumpPressed);
         if (triggerJump) {
+            
             Jump();
+
         }
         if (triggerDash)
         {
             Dash();
         }
-        // Apply velocity from input or environmental factors
-        if(!overRideVelX && velX != 0) {
+
+        if (state == "freeFallStartup"){
+            rb.gravityScale = 0;
+            rb.velocity = new Vector2(0, 0);
+        }else if(state == "isFreeFalling" && rb.gravityScale != gravity) {
+            rb.gravityScale = gravity;
+        } if (state == "isDashing") {
+            float t = (float) lockedInputTimer / Dash_Locked_Input_Time;
+            rb.velocity = new Vector2(dashVelocity.x * t, dashVelocity.y * t);
+            
+        }else if(!overRideVelX && velX != 0) {
             rb.velocity = new Vector2(rb.velocity.x + (velX), rb.velocity.y);
-            if(state != "standing" && rb.velocity.x > maxSpeed) {
+            if(state != "isDashing" && rb.velocity.x > maxSpeed) {
                 rb.velocity = new Vector2(maxSpeed, rb.velocity.y);
-            } else if (state != "standing" && rb.velocity.x < -maxSpeed) {
+            } else if (state != "isDashing" && rb.velocity.x < -maxSpeed) {
                 rb.velocity = new Vector2(-maxSpeed, rb.velocity.y);
             }
         }
@@ -119,10 +155,7 @@ public class PlayerController : MonoBehaviour
 
         if (hit) {
             if (!isGroundedThisFrame) {
-                var newX = rb.velocity.x > 0 ? rb.velocity.x + Mathf.Abs(rb.velocity.y) : rb.velocity.x - Mathf.Abs(rb.velocity.y);
-                newVelocity = new Vector3(newX, rb.velocity.y, 1);
-                Debug.Log(jumpFrameCounter + " " + newX);
-                lockoutInput(WAVE_LAND_LOCKOUT_FRAMES, true, false);
+                state = "standing";
             }
             isGroundedThisFrame = hit;
         }
@@ -130,13 +163,13 @@ public class PlayerController : MonoBehaviour
 
     void checkGrounded() {
         // bitshift the index of the layer (8) to get the layer mask
-        RaycastHit2D hit1 = Physics2D.Raycast(bottomRight.position, Vector2.down, GROUND_RAYCAST_DISTANCE, 1 << 8);
+        RaycastHit2D hit1 = Physics2D.Raycast(bottomRight.position, Vector2.down, GROUND_RAYCAST_DISTANCE, (1 << 8 | 1 << 9));
         if (hit1){
             checkWaveland(hit1);
             return;
         } 
 
-        RaycastHit2D hit2 = Physics2D.Raycast(bottomLeft.position, Vector2.down, GROUND_RAYCAST_DISTANCE, 1 << 8);
+        RaycastHit2D hit2 = Physics2D.Raycast(bottomLeft.position, Vector2.down, GROUND_RAYCAST_DISTANCE, (1 << 8 | 1 << 9));
         if (hit2){
             checkWaveland(hit2);
             return;
@@ -152,7 +185,8 @@ public class PlayerController : MonoBehaviour
 
     void checkJump()
     {
-        if (inputHandler.GetInputObject().jumpPressed)
+        var inputObj = inputHandler.GetInputObject();
+        if (inputObj.jumpPressed)
         {
             // Check and exit if this is a wall jump
             if (checkWallJump() == true)
@@ -165,13 +199,9 @@ public class PlayerController : MonoBehaviour
             }else if(!isGroundedThisFrame && usedDoubleJump == true) {
                 return;
             }
-
-            // Jump in FixedUpdate()
-            triggerJump = true;
-            jumpFrameCounter = 0;
-            state = "jumping";
-            // Escape jumpEscapable input lockout e.g. wall jump
-            lockedInputTimer = -1;
+            startJumpSquat();
+        } else if(state == "isJumpSquatting" && !inputObj.jumpHeld) {
+            hop = hopModifier;
         }
     }
 
@@ -184,12 +214,16 @@ public class PlayerController : MonoBehaviour
             velX = acceleration;
             if (transform.localScale.x < 0)
                 transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
+            
+            state = "WallSliding";
         // Right Wall Specific
         }else if (checkWallHitting(Vector2.right)) {
             wallHit = true;
             velX = -acceleration;
             if (transform.localScale.x > 0)
                 transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
+
+            state = "wallSliding";
         }
 
         // Wall Jump General
@@ -212,7 +246,7 @@ public class PlayerController : MonoBehaviour
             child2 = transform.localScale.x > 0 ? bottomRight : bottomLeft;
             child3 = transform.localScale.x > 0 ? middleRight: middleLeft;
 
-            RaycastHit2D hit1 = Physics2D.Raycast(child1.position, direction, WALL_RAYCAST_DISTANCE, 1 << PLATFORM_LAYER_MASK);
+            RaycastHit2D hit1 = Physics2D.Raycast(child1.position, direction, WALL_RAYCAST_DISTANCE, 1 << PLATFORM_LAYER_MASK | 1);
             // Uncomment below for debugging the raycasts
             /*Color color = hit1 ? Color.green : Color.red;
             Debug.DrawRay(child1.position, direction * WALL_RAYCAST_DISTANCE, color, 3);
@@ -256,6 +290,8 @@ public class PlayerController : MonoBehaviour
     }
 
     void checkMovement() {
+        if (state == "isJumpSquatting")
+            return;
         // Left Input
         inputX = inputHandler.GetInputObject().inputX;
         if (inputX < 0)
@@ -300,23 +336,33 @@ public class PlayerController : MonoBehaviour
     }
 
     void checkLanding() {
-        if (isGroundedThisFrame && animationController.GetBool("isJumping") /*&& forcedJumpTimer > FORCED_JUMP_TIME*/){
+        if (isGroundedThisFrame && animationController.GetBool("isJumping") ){
             animationController.SetBool("isJumping", false);
             usedDoubleJump = false;
         }
     }
 
+    void startJumpSquat() {
+        lockoutInput(jumpSquatFrames, false, true);
+        state = "isJumpSquatting";
+        hop = 1;
+        //Debug.Log("Start Jump Squat");
+    }
+
     // Actions
     void Jump() {
         // Either player was on ground, or hadn't used double jump, so JUMP
-        rb.velocity = new Vector2(rb.velocity.x, 0);
-        rb.AddForce(new Vector2(0f, jump), ForceMode2D.Impulse);
-        animationController.SetBool("isJumping", true);
-        forcedJumpTimer = 0;
+        var input = inputHandler.GetInputObject();
+        float angle = input.inputX != 0 ? Mathf.Atan2(input.inputY, input.inputX) : Mathf.PI / 2;
+        rb.velocity = new Vector2(Mathf.Cos(angle) * maxSpeed, jump * hop);
+        //rb.AddForce(new Vector2(0f, jump), ForceMode2D.Impulse);
+        if (!animationController.GetBool("isJumping"))
+            animationController.SetBool("isJumping", true);
         triggerJump = false;
+        state = "isJumping";
     }
 
-    public void lockoutInput(float lockoutTime, bool jumpEscapable, bool overRideVelX) {
+    public void lockoutInput(int lockoutTime, bool jumpEscapable, bool overRideVelX) {
         this.lockedInputTimer = lockoutTime;
         this.lockedInputJumpEscapable = jumpEscapable;
         this.overRideVelX = overRideVelX; 
@@ -324,17 +370,20 @@ public class PlayerController : MonoBehaviour
 
     void checkDash()
     {
-        if (inputHandler.GetInputObject().dashPressed)
+        if (state == "isJumping" && inputHandler.GetInputObject().dashPressed)
         {
             triggerDash = true;
             newVelocity = new Vector3(0, 0, 1);
+            state = "isDashing";
+            dashVelocity = new Vector2(inputHandler.GetInputObject().inputX, inputHandler.GetInputObject().inputY) * dashSpeed;
             lockoutInput(Dash_Locked_Input_Time, true, true);
         }
     }
 
     void Dash()
     {
-        rb.AddForce(new Vector2(inputX, inputHandler.GetInputObject().inputY) * dashSpeed, ForceMode2D.Impulse);
+        //rb.AddForce(new Vector2(inputHandler.GetInputObject().inputX, inputHandler.GetInputObject().inputY) * dashSpeed, ForceMode2D.Impulse);
         triggerDash = false;
+
     }
 }

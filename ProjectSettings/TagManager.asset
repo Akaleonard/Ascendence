@@ -3,7 +3,8 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 2
-  tags: []
+  tags:
+  - Passthrough
   layers:
   - Default
   - TransparentFX
@@ -14,10 +15,10 @@ TagManager:
   - 
   - 
   - Platforms
+  - Passthrough Platforms
+  - Jumping
   - Background Image
   - Canvas
-  - 
-  - 
   - 
   - 
   - 
